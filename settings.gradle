@@ -1,0 +1,2 @@
+rootProject.name='Custom Image Picker'
+include ':app', ':image_picker'
