@@ -1,5 +1,6 @@
 package np.com.susonthapa.image_picker
 
+import android.Manifest
 import android.content.ContentUris
 import android.content.Context
 import android.os.Bundle
@@ -14,18 +15,25 @@ import androidx.navigation.fragment.findNavController
 import androidx.navigation.ui.NavigationUI
 import com.google.android.material.snackbar.Snackbar
 import np.com.susonthapa.image_picker.databinding.FragmentImagePickerBinding
+import pub.devrel.easypermissions.AfterPermissionGranted
+import pub.devrel.easypermissions.AppSettingsDialog
+import pub.devrel.easypermissions.EasyPermissions
 import java.lang.IllegalArgumentException
 
 /**
  * A simple [Fragment] subclass.
  */
-class ImagePickerFragment : Fragment() {
+private const val PERMISSION_STORAGE = 1
+
+class ImagePickerFragment : Fragment(), EasyPermissions.PermissionCallbacks {
 
     private var _binding: FragmentImagePickerBinding? = null
     private val binding get() = _binding!!
 
     private val images = ArrayList<GridItem>()
     private lateinit var gridAdapter: ImageGridAdapter
+    private val storagePermission = Manifest.permission.READ_EXTERNAL_STORAGE
+
 
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
@@ -33,7 +41,12 @@ class ImagePickerFragment : Fragment() {
     ): View? {
         // Inflate the layout for this fragment
         _binding = FragmentImagePickerBinding.inflate(inflater, container, false)
-        val gridLayoutManager = AutoGridLayoutManager(context!!)
+        checkPermission()
+        return binding.root
+    }
+
+    private fun initializeUI() {
+        val gridLayoutManager = AutoGridLayoutManager(requireContext())
         gridAdapter = ImageGridAdapter(images) {
             binding.appToolBar.apply {
                 title = if (it == 0) {
@@ -45,7 +58,7 @@ class ImagePickerFragment : Fragment() {
             }
         }
         val itemDecorator = GridItemDecorator(
-            context!!.resources.getDimensionPixelSize(R.dimen.grid_spacing),
+            requireContext().resources.getDimensionPixelSize(R.dimen.grid_spacing),
             gridLayoutManager
         )
         binding.imageRecycler.apply {
@@ -67,7 +80,25 @@ class ImagePickerFragment : Fragment() {
         }
         loadImages()
 
-        return binding.root
+    }
+
+    @AfterPermissionGranted(PERMISSION_STORAGE)
+    private fun checkPermission() {
+        if (EasyPermissions.hasPermissions(requireContext(), storagePermission)) {
+            binding.accessLayout.visibility = View.GONE
+            initializeUI()
+        } else {
+            binding.accessLayout.visibility = View.VISIBLE
+            binding.allowAccess.setOnClickListener {
+                // request permissions
+                EasyPermissions.requestPermissions(
+                    this,
+                    "Give permission to read storage",
+                    PERMISSION_STORAGE,
+                    storagePermission
+                )
+            }
+        }
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
@@ -79,7 +110,8 @@ class ImagePickerFragment : Fragment() {
                 (activity as OnImageSelectionDone).selectedImages(selectedImages)
                 findNavController().navigateUp()
             } else {
-                Snackbar.make(binding.root, "Select some images to send", Snackbar.LENGTH_LONG).show()
+                Snackbar.make(binding.root, "Select some images to send", Snackbar.LENGTH_LONG)
+                    .show()
             }
             return true
         }
@@ -92,7 +124,7 @@ class ImagePickerFragment : Fragment() {
         val projections = arrayOf(MediaStore.Images.Media._ID, MediaStore.Images.Media.DISPLAY_NAME)
         val sortOrder = "${MediaStore.Images.Media.DATE_MODIFIED} DESC"
 
-        val query = context!!.contentResolver.query(
+        val query = requireContext().contentResolver.query(
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
             projections,
             null,
@@ -136,5 +168,26 @@ class ImagePickerFragment : Fragment() {
 
     interface OnImageSelectionDone {
         fun selectedImages(images: List<GridItem>)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        EasyPermissions.onRequestPermissionsResult(requestCode, permissions, grantResults, this)
+    }
+
+    override fun onPermissionsDenied(requestCode: Int, perms: MutableList<String>) {
+        // check if the user permanently denied the permission
+        if (EasyPermissions.somePermissionPermanentlyDenied(this, listOf(storagePermission))) {
+            AppSettingsDialog.Builder(this).build().show()
+        } else {
+            Snackbar.make(requireView(), "Permission is required to choose photo", Snackbar.LENGTH_LONG)
+        }
+    }
+
+    override fun onPermissionsGranted(requestCode: Int, perms: MutableList<String>) {
     }
 }
