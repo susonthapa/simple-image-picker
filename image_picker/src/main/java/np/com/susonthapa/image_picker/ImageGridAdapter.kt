@@ -1,8 +1,10 @@
 package np.com.susonthapa.image_picker
 
+import android.animation.ValueAnimator
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.OvershootInterpolator
 import androidx.recyclerview.widget.RecyclerView
 import np.com.susonthapa.image_picker.databinding.ImagePickerItemBinding
 
@@ -66,7 +68,23 @@ class ImageGridAdapter(
             if (item.isSelected()) {
                 binding.selectionIndicator.text = item.selectedIndex.toString()
                 binding.selectionOverlay.visibility = View.VISIBLE
+                // only animate the item if it's not visible
+                if (!item.isVisible) {
+                    ValueAnimator.ofFloat(0f, 1f).apply {
+                        duration = 250
+                        interpolator = OvershootInterpolator()
+                        addUpdateListener {
+                            val value = it.animatedValue as Float
+                            binding.selectionIndicator.scaleX = value
+                            binding.selectionIndicator.scaleY = value
+                            binding.selectionOverlay.alpha = value
+                        }
+                        start()
+                    }
+                }
+                item.isVisible = true
             } else {
+                item.isVisible = false
                 binding.selectionOverlay.visibility = View.INVISIBLE
             }
         }
